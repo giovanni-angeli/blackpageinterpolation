@@ -1,0 +1,158 @@
+<!doctype html>
+<html>
+    <head>
+        <title>{{ title }}</title>
+        <meta charset="utf-8" />
+        <style type="text/css">
+            body {
+                font-family: Monospace;
+                text-align: center;
+                min-width: 600px;
+            }
+            tr:nth-of-type(odd) { 
+              background: #DFDFDF; 
+            }
+            tr:nth-of-type(even) { 
+              background: #E6E6E6; 
+            }
+            table { 
+               table-layout: fixed;
+               width: 90%;
+               align:center;
+            }
+            .pushed_data_container {
+                overflow-x: auto;
+                overflow: auto;
+            }
+            .hidden {
+                display: none;
+            }
+            #title {
+                color:#882222;
+            }
+            #answer_display {
+                color: #990000;
+                background-color: #FFFF99;
+                padding: 10px;
+            }
+        </style>
+    </head>
+ 
+    <body>
+        <h1 id="title">{{ title }}</h1>
+        <div id="ws_connection">
+            <label for="host">host:</label><input type="text" id="host" value="127.0.0.1"/>
+            <label for="port">port:</label><input type="text" id="port" value="8000"/>
+            <label for="uri">uri:</label><input type="text" id="uri" value="/websocket"/>
+            <br></br>
+            <input type="submit" id="open_btn" value="open" onclick="open_btn_clicked();"/>
+            <input type="submit" id="close_btn" value="close" onclick="close_btn_clicked();" disabled="true"/>
+        </div>
+        <br></br>
+        <div id="message_container">
+            <input type="text" id="message" value="Hot meat!"/>
+            <input type="submit" id="send_btn" value="send" onclick="send_btn_clicked();" disabled="true"/>
+        </div>
+        <div id="answer_display">***</div>
+        <br></br>
+        <div>time:[<span id="time_display">***</span>], channel counter:<span id="channel_counter">***</span></div>
+        <div id="pushed_data_container">
+            <table cellpadding="8" align="center">
+                <tr><th width="10">-</th><th>1</th><th>2</th><th>3</th></tr>
+                <tr><td>A</td><td id="datatable_cell_1_1">*</td><td id="datatable_cell_2_1">*</td><td id="datatable_cell_3_1">*</td></tr>
+                <tr><td>B</td><td id="datatable_cell_1_2">*</td><td id="datatable_cell_2_2">*</td><td id="datatable_cell_3_2">*</td></tr>
+                <tr><td>C</td><td id="datatable_cell_1_3">*</td><td id="datatable_cell_2_3">*</td><td id="datatable_cell_3_3">*</td></tr>
+                <tr><td>D</td><td id="datatable_cell_1_4">*</td><td id="datatable_cell_2_4">*</td><td id="datatable_cell_3_4">*</td></tr>
+                <tr><td>E</td><td id="datatable_cell_1_5">*</td><td id="datatable_cell_2_5">*</td><td id="datatable_cell_3_5">*</td></tr>
+            </table>
+        </div>    
+        <small id="footer">{{ footer }}</small>
+        <div id="logger_area_container" hidden>
+            <textarea id="logger_area" maxlength="50" rows="20" cols="100">
+            </textarea>
+        </div>    
+    </body>
+
+    <script>
+ 
+        var ws_instance;  
+        var logging = function(data){
+            _ = document.getElementById("logger_area").innerHTML;
+            document.getElementById("logger_area").innerHTML = data.substring(0, 500) + "\n" + _;
+            console.log(data);
+        };
+        var open_btn_clicked = function () {
+
+            var host = document.getElementById("host").value;
+            var port = document.getElementById("port").value;
+            var uri  = document.getElementById("uri").value;
+            try {
+
+                if (ws_instance) {
+                    ws_instance.close();
+                }
+                var resource = "ws://" + host + ":" + port + uri;
+                logging("connecting to: " + resource);
+                ws_instance = new WebSocket(resource);
+                ws_instance.onerror   = on_ws_error  ; 
+                ws_instance.onopen    = on_ws_open   ;  
+                ws_instance.onclose   = on_ws_close  ;
+                ws_instance.onmessage = on_ws_message;
+            } catch(err) {
+                logging("err:" + err);
+            }
+        }
+        var close_btn_clicked = function () {
+            try {
+                ws_instance.close();
+                ws_instance = null;
+            } catch(err) {
+                logging("err:" + err);
+            }
+        }
+        var send_btn_clicked = function () {
+            var msg_ = document.getElementById("message").value;
+            logging("sending message to ws: '" + msg_ + "'");
+            for (i = 0; i < 10; i++) { 
+                ws_instance.send(msg_ + " (" + i + ")");
+            }
+        }
+        var on_ws_error = function (evt) {
+            logging("error: " + evt.data);
+            alert("error: " + evt.data);
+        }
+        var on_ws_open = function (evt) {
+            logging("* ws connection open *");
+            document.getElementById("open_btn").disabled = true; 
+            document.getElementById("send_btn").disabled = false; 
+            document.getElementById("close_btn").disabled = false; 
+        }
+        var on_ws_close = function (evt) {
+            logging("* ws connection closed *");
+            document.getElementById("open_btn").disabled = false; 
+            document.getElementById("send_btn").disabled = true; 
+            document.getElementById("close_btn").disabled = true; 
+        }
+        var on_ws_message = function (evt) {
+            try {
+                var data = JSON.parse(evt.data);            
+//~                 eval(data.js);
+                if ((data.innerHTML) && (data.element_id)) {
+                    var el = document.getElementById(data.element_id)
+                    if (el) { el.innerHTML = data.innerHTML; }
+                }
+            } catch(err) {
+                logging("err:" + err);
+            }
+        }
+
+        var init = function () {
+             open_btn_clicked();
+        }
+    </script>
+
+    <script>
+        init();
+    </script>
+
+</html>
