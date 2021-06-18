@@ -1,10 +1,6 @@
-# Pyjamapeople
+# Black Page Interpolation
 
-a simple but fully featured example of how to use **tornado**, **asyncio** and **websocket** together 
-to build an application delegating the frontend UI to a browser, local or remote,
-without the limits of the http dialog.
-
-TAGS: tornado asyncio websocket 
+Scattered Data Interpolation in N-dim space based on Radia Basis Functions
 
 1. create a virtualenv 
 >     $ export VIRTENV_ROOT=desired-virtenv_root-path
