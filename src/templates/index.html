@@ -3,6 +3,7 @@
     <head>
         <title>{{ title }}</title>
         <meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0"> 
         <style type="text/css">
             body {
                 font-family: Monospace;
@@ -39,39 +40,42 @@
     </head>
  
     <body>
-        <h1 id="title">{{ title }}</h1>
-        <div id="ws_connection">
+        <span id="title" style="text-align:left;font-size:18px;">{{ title }}</span>
+        <span id="ws_connection">
+			<label style="border: 1px dashed #999999;margin: 4px;" id="time_display">***</label>
             <label for="host">host:</label><input type="text" id="host" value="127.0.0.1"/>
             <label for="port">port:</label><input type="text" id="port" value="8000"/>
             <label for="uri">uri:</label><input type="text" id="uri" value="/websocket"/>
-            <br></br>
             <input type="submit" id="open_btn" value="open" onclick="open_btn_clicked();"/>
             <input type="submit" id="close_btn" value="close" onclick="close_btn_clicked();" disabled="true"/>
-        </div>
-        <br></br>
+        </span>
+		<div id="params_panel"> 
+		{% raw params_panel %}
+		</div>
+		<hr></hr>
         <div id="message_container">
-            <input type="text" id="message" value="Hot meat!"/>
+            <select id="message">
+				<option value="run_model" selected>run_model</option>
+				<option value="store_results">store_results</option>
+				<option value="refresh_results">refresh_results</option>
+				<option value="stop_model">stop_model</option>
+			</select>
+            <input type="text" id="message_option" value=""	/>
             <input type="submit" id="send_btn" value="send" onclick="send_btn_clicked();" disabled="true"/>
+			<label id="answer_display">***</label>
         </div>
-        <div id="answer_display">***</div>
         <br></br>
-        <div>time:[<span id="time_display">***</span>], channel counter:<span id="channel_counter">***</span></div>
-        <div id="pushed_data_container">
-            <table cellpadding="8" align="center">
-                <tr><th width="10">-</th><th>1</th><th>2</th><th>3</th></tr>
-                <tr><td>A</td><td id="datatable_cell_1_1">*</td><td id="datatable_cell_2_1">*</td><td id="datatable_cell_3_1">*</td></tr>
-                <tr><td>B</td><td id="datatable_cell_1_2">*</td><td id="datatable_cell_2_2">*</td><td id="datatable_cell_3_2">*</td></tr>
-                <tr><td>C</td><td id="datatable_cell_1_3">*</td><td id="datatable_cell_2_3">*</td><td id="datatable_cell_3_3">*</td></tr>
-                <tr><td>D</td><td id="datatable_cell_1_4">*</td><td id="datatable_cell_2_4">*</td><td id="datatable_cell_3_4">*</td></tr>
-                <tr><td>E</td><td id="datatable_cell_1_5">*</td><td id="datatable_cell_2_5">*</td><td id="datatable_cell_3_5">*</td></tr>
-            </table>
+        <div id="data_display">
         </div>    
-        <small id="footer">{{ footer }}</small>
         <div id="logger_area_container" hidden>
             <textarea id="logger_area" maxlength="50" rows="20" cols="100">
             </textarea>
         </div>    
     </body>
+	<hr></hr>
+    <footer>
+        <small id="footer">{{ footer }}</small>
+    </footer>
 
     <script>
  
@@ -104,18 +108,35 @@
         }
         var close_btn_clicked = function () {
             try {
+				ws_instance.send(JSON.stringify({'message': 'close', 'option': ''}));
                 ws_instance.close();
                 ws_instance = null;
             } catch(err) {
                 logging("err:" + err);
             }
         }
-        var send_btn_clicked = function () {
-            var msg_ = document.getElementById("message").value;
-            logging("sending message to ws: '" + msg_ + "'");
-            for (i = 0; i < 10; i++) { 
-                ws_instance.send(msg_ + " (" + i + ")");
-            }
+        var send_params_panel = function () {
+			var params = {};
+			const params_panel_items = document.getElementsByClassName('params_panel_item');
+			for (let i = 0; i < params_panel_items.length; i++) {
+				const name = params_panel_items[i].name;
+				const value = params_panel_items[i].value;
+				params[name] = value;
+			}
+			var pack = JSON.stringify({'message': 'params_panel', 'option': params});
+            logging("sending pack to ws: '" + pack + "'");
+			ws_instance.send(pack);
+		}
+
+		var send_btn_clicked = function () {
+
+			send_params_panel();
+
+			var message = document.getElementById("message").value;
+            var message_option = document.getElementById("message_option").value;
+			var pack = JSON.stringify({'message': message, 'option': message_option});
+            logging("sending pack to ws: '" + pack + "'");
+			ws_instance.send(pack);
         }
         var on_ws_error = function (evt) {
             logging("error: " + evt.data);
@@ -147,7 +168,8 @@
         }
 
         var init = function () {
-             open_btn_clicked();
+			open_btn_clicked();
+//~ 			ws_instance.send(JSON.stringify({'message': 'open', 'option': ''}));
         }
     </script>
 

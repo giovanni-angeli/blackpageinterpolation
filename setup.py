@@ -8,11 +8,6 @@ import glob
 
 from setuptools import setup, find_packages
 
-import os
-import glob
-
-from setuptools import setup, find_packages
-
 here = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(here, '__version__'), encoding='utf-8') as f:
     __version__ = f.read().strip()
@@ -20,7 +15,7 @@ with open(os.path.join(here, '__version__'), encoding='utf-8') as f:
 with open(os.path.join(here, 'README.md'), encoding='utf-8') as f:
     __readme__ = f.read().strip()
 
-__app_name__ = 'pyjamampeople'
+__app_name__ = 'blackpageinterpolation'
 
 def main():
     setup(
@@ -41,14 +36,16 @@ def main():
         packages=find_packages(where='src'),
         package_dir={'': 'src'},
         data_files=[
-            ('templates', list(glob.glob('templates/*'))),
+            ('templates', list(glob.glob('src/templates/*'))),
+            ('templates', list(glob.glob('src/statics/*'))),
         ],
         include_package_data=True,
         scripts=[
-            'bin/pyjamampeople',
+            'bin/blackpage',
         ],
         install_requires=[
             'tornado',
+            'numpy',
         ],
     )
 
