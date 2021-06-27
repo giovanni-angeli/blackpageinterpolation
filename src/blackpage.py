@@ -14,6 +14,7 @@ import logging
 import traceback
 import json
 # ~ import random
+from functools import partial
 
 import tornado.web            # pylint: disable=import-error
 import tornado.httpserver     # pylint: disable=import-error
@@ -51,8 +52,7 @@ class HttpHandler(tornado.web.RequestHandler): # pylint: disable=too-few-public-
         ctx = {
             "title": "ColorInterpolator",
             "footer": "© Munchkin Music Co - https://www.zappa.com/",
-            # ~ "params_panel": tornado.escape.xhtml_escape(self.parent.render_params_html())
-            "params_panel": self.parent.render_params_html()
+            "params_panel": self.parent.backend_instance.render_params_html()
         }
         ret = self.render("index.html", **ctx)
         return ret
@@ -89,7 +89,7 @@ class Backend:       # pylint: disable=too-few-public-methods
 
     def __init__(self, parent=None):
 
-        pigment_combos = [
+        self.pigment_combos = [
             "jauox,noir,rouox",
             "jaune,jauox,vert",
             "jauox,noir,vert",
@@ -110,48 +110,73 @@ class Backend:       # pylint: disable=too-few-public-methods
             rfb_name='test',
             epsilon=1.0,
             n_of_rotate_sample=10,
-            n_of_sites=100,
-            mockup=False,
-            pigment_combo=pigment_combos[0],
-            offset=0)
+            n_of_sites=1000,
+            pigment_combo=self.pigment_combos[0],
+            randomize_sample=1,
+            n_of_closest_points=50)
 
-        self.param_descriptions = dict(
-            pigment_combo=f"{pigment_combos}")
+        self.param_descriptions = {
+            # ~ 'pigment_combo': f"{self.pigment_combos}",
+        }
 
         self.model = None
         self.results = None
 
-    def update_progress(self, progress):
+    def render_params_html(self):
 
-        self.parent.send_message_to_UI(element_id='answer_display', innerHTML=progress)
+        _params = self.params.copy()
 
-    def run_model(self):
+        pigment_combo = _params.pop('pigment_combo')
+        pigment_combo_options = [f'<option value="{n}">{i} {n}</option>' for i, n in enumerate(self.pigment_combos)]
 
-        data_dir = "/opt/PROJECTS/blackpageinterpolation/_ignore_/data/recipes"
+        html_ = '<table>'
+        for k, v in _params.items():
+            description = self.param_descriptions.get(k)
+            html_ += f'<tr>'
+            html_ += f'<td style="text-align:right;width:10%;">{k}:</td>'
+            html_ += f'<td style="text-align:left;"><input value="{v}" name="{k}" size="40" class="params_panel_item"></input></td>'
+            html_ += f'<td style="width:50%;">{description}</td>'
+            html_ += f'</tr>'
+
+        html_ += f'<tr>'
+        html_ += f'<td style="text-align:right;width:10%;">{pigment_combo}:</td>'
+        html_ += f'<td style="text-align:left;"><select name="pigment_combo" class="params_panel_item">{pigment_combo_options}</select></td>'
+        html_ += f'<td style="width:50%;">{description}</td>'
+        html_ += f'</tr>'
+
+        html_ += '</table>'
+
+        return html_
+
+    def update_progress(self, ws_socket, progress):
+
+        self.parent.send_message_to_UI(element_id='answer_display', innerHTML=progress, ws_socket=ws_socket)
+
+    async def run_model(self, ws_socket, order_by='rgb', reverse=True):
 
         try:
             _params = self.params.copy()
             _params['epsilon'] = float(self.params['epsilon'])
             _params['n_of_rotate_sample'] = int(self.params['n_of_rotate_sample'])
             _params['n_of_sites'] = int(self.params['n_of_sites'])
+            _params['randomize_sample'] = int(self.params['randomize_sample'])
             _params['mockup'] = False
-            _params['f_name'] = os.path.join(data_dir, "recipes.Master base,Neutro," + self.params['pigment_combo'] + ",white.json")
-            _params['offset'] = int(self.params['offset'])
+            _params['n_of_closest_points'] = int(self.params['n_of_closest_points'])
 
             logging.info(f"_params:{_params}")
 
             self.model = Model(**_params)
 
-            self.model.progress = self.update_progress
+            self.model.progress = partial(self.update_progress, ws_socket)
 
-            self.results = self.model.run()
+            self.results = await self.model.run()
 
         except Exception:  # pylint: disable=broad-except
             self.results = traceback.format_exc()
             logging.error(traceback.format_exc())
 
-        _, html_body, _ = self.model.render_results_html(self.results, title="")
-        return html_body
+        # ~ _, results_html, _ = self.model.render_results_html(self.results, title="")
+        self.refresh_results(ws_socket, order_by=order_by, reverse=reverse)
 
     def store_results(self, ):
 
@@ -164,19 +189,20 @@ class Backend:       # pylint: disable=too-few-public-methods
 
         return f_name
 
-    def refresh_results(self, order_by='rgb'):
+    def refresh_results(self, ws_socket, order_by='error', reverse=True):
 
         if order_by.lower() == 'r':
-            self.results.sort(key=lambda x: x.get('rgb', 0) and x['rgb'][0])
+            self.results.sort(key=lambda x: x.get('rgb', 0) and x['rgb'][0], reverse=reverse)
         elif order_by.lower() == 'g':
-            self.results.sort(key=lambda x: x.get('rgb', 0) and x['rgb'][1])
+            self.results.sort(key=lambda x: x.get('rgb', 0) and x['rgb'][1], reverse=reverse)
         elif order_by.lower() == 'b':
-            self.results.sort(key=lambda x: x.get('rgb', 0) and x['rgb'][2])
+            self.results.sort(key=lambda x: x.get('rgb', 0) and x['rgb'][2], reverse=reverse)
         else:
-            self.results.sort(key=lambda x: x.get(order_by) and x[order_by])
+            self.results.sort(key=lambda x: x.get(order_by) and x[order_by], reverse=reverse)
 
         _, html_body, _ = self.model.render_results_html(self.results, title="")
-        return html_body
+
+        self.parent.send_message_to_UI(element_id='data_display', innerHTML=html_body, ws_socket=ws_socket)
 
     async def run(self):
 
@@ -202,48 +228,38 @@ class Application:
     tornado_instance = None
     backend_instance = None
 
-    def render_params_html(self):
-
-        html_ = '<table>'
-        for k, v in self.backend_instance.params.items():
-            description = self.backend_instance.param_descriptions.get(k)
-            html_ += f'<tr>'
-            html_ += f'<td style="text-align:right;width:10%;">{k}:</td>'
-            html_ += f'<td style="text-align:left;"><input value="{v}" name="{k}" size="40" class="params_panel_item"></input></td>'
-            html_ += f'<td style="width:50%;">{description}</td>'
-            html_ += f'</tr>'
-        html_ += '</table>'
-
-        return html_
-
     async def handle_message_from_UI(self, ws_socket, pack):
 
         index_ = ws_socket in self.web_socket_channels and self.web_socket_channels.index(ws_socket)
         pack = json.loads(pack)
         logging.info(f"index_:{index_}, pack:{pack}")
-        if pack.get('message') == 'run_model':
+
+        command = pack.get('message', pack.get('command'))
+
+        order_by = pack.get('option', {}).get('order_by', 'rgb')
+        reverse = pack.get('option', {}).get('reverse')
+        reverse = bool(reverse)
+
+        if command == 'run_model':
 
             self.send_message_to_UI(element_id='answer_display', innerHTML='Running Model, please wait...', ws_socket=ws_socket)
-            results_html = self.backend_instance.run_model()
-            self.send_message_to_UI(element_id='data_display', innerHTML=results_html, ws_socket=ws_socket)
+            await self.backend_instance.run_model(ws_socket, order_by=order_by, reverse=reverse)
 
-        elif pack.get('message') == 'store_results':
+        elif command == 'store_results':
 
             f_name = self.backend_instance.store_results()
             self.send_message_to_UI(element_id='answer_display', innerHTML=f'stored data to "{f_name}"', ws_socket=ws_socket)
 
-        elif pack.get('message') == 'refresh_results':
+        elif command == 'order_by':
 
-            order_by = pack.get('option', 'rgb')
-            results_html = self.backend_instance.refresh_results(order_by=order_by)
-            self.send_message_to_UI(element_id='data_display', innerHTML=results_html, ws_socket=ws_socket)
+            self.backend_instance.refresh_results(ws_socket, order_by=order_by, reverse=reverse)
 
-        elif pack.get('message') == 'stop_model':
+        elif command == 'stop_model':
 
             if self.backend_instance.model:
                 self.backend_instance.model.stop()
 
-        elif pack.get('message') == 'params_panel':
+        elif command == 'params_panel':
 
             params = pack.get('option')
             self.backend_instance.params.update(params)

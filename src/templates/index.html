@@ -53,17 +53,29 @@
 		{% raw params_panel %}
 		</div>
 		<hr></hr>
-        <div id="message_container">
-            <select id="message">
-				<option value="run_model" selected>run_model</option>
-				<option value="store_results">store_results</option>
-				<option value="refresh_results">refresh_results</option>
-				<option value="stop_model">stop_model</option>
-			</select>
-            <input type="text" id="message_option" value=""	/>
-            <input type="submit" id="send_btn" value="send" onclick="send_btn_clicked();" disabled="true"/>
-			<label id="answer_display">***</label>
-        </div>
+        <table id="message_container">
+        <tr>
+
+			<td style="text-align:right;">
+				<input type="submit" id="run_model_btn" value="run_model" onclick="send_command('run_model');"/>
+				<input type="submit" id="stop_model_btn" value="stop_model" onclick="send_command('stop_model');"/>
+				<input type="submit" id="store_results_btn" value="store_results" onclick="send_command('store_results');"/>
+				<label for="order_by_select">order by:</label>
+				<select id="order_by_select" onchange="send_command('order_by');">
+					<option value="r">r</option>
+					<option value="g">g</option>
+					<option value="b">b</option>
+					<option value="name">name</option>
+					<option value="error">std dev</option>
+					<option value="dist">dist</option>
+				</select>
+				<label for="reverse">reverse</label>
+				<input type="checkbox" id="reverse_cb" name="reverse" onchange="send_command('order_by');"></input>
+			</td>
+			<td style="text-align:left;"  id="answer_display">
+			</td>
+		</tr>
+		</table>
         <br></br>
         <div id="data_display">
         </div>    
@@ -128,13 +140,22 @@
 			ws_instance.send(pack);
 		}
 
-		var send_btn_clicked = function () {
+		var send_command = function (command) {
 
-			send_params_panel();
-
-			var message = document.getElementById("message").value;
-            var message_option = document.getElementById("message_option").value;
-			var pack = JSON.stringify({'message': message, 'option': message_option});
+			var option = '';
+			if (command == 'order_by') {
+				option = {
+					'order_by': document.getElementById("order_by_select").value,
+					'reverse': document.getElementById("reverse_cb").checked
+				};
+			} else if (command == 'run_model') {
+				send_params_panel();
+				option = {
+					'order_by': document.getElementById("order_by_select").value,
+					'reverse': document.getElementById("reverse_cb").checked
+				};
+			}
+			var pack = JSON.stringify({'command': command, 'option': option});
             logging("sending pack to ws: '" + pack + "'");
 			ws_instance.send(pack);
         }
@@ -145,13 +166,11 @@
         var on_ws_open = function (evt) {
             logging("* ws connection open *");
             document.getElementById("open_btn").disabled = true; 
-            document.getElementById("send_btn").disabled = false; 
             document.getElementById("close_btn").disabled = false; 
         }
         var on_ws_close = function (evt) {
             logging("* ws connection closed *");
             document.getElementById("open_btn").disabled = false; 
-            document.getElementById("send_btn").disabled = true; 
             document.getElementById("close_btn").disabled = true; 
         }
         var on_ws_message = function (evt) {
