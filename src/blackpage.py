@@ -38,7 +38,7 @@ APPLICATION_OPTIONS = dict(
     compiled_template_cache=False)
 
 
-class HttpHandler(tornado.web.RequestHandler): # pylint: disable=too-few-public-methods, abstract-method
+class HttpHandler(tornado.web.RequestHandler):  # pylint: disable=too-few-public-methods, abstract-method
 
     parent = None
 
@@ -58,7 +58,7 @@ class HttpHandler(tornado.web.RequestHandler): # pylint: disable=too-few-public-
         return ret
 
 
-class WebsockHandler(tornado.websocket.WebSocketHandler): # pylint: disable=abstract-method
+class WebsockHandler(tornado.websocket.WebSocketHandler):  # pylint: disable=abstract-method
 
     parent = None
 
@@ -88,6 +88,8 @@ class WebsockHandler(tornado.websocket.WebSocketHandler): # pylint: disable=abst
 class Backend:       # pylint: disable=too-few-public-methods
 
     def __init__(self, parent=None):
+
+        self.params_file_path = os.path.join(HERE, '..', '..', '_ignore_', 'params')
 
         self.pigment_combos = [
             "jauox,noir,rouox",
@@ -127,24 +129,54 @@ class Backend:       # pylint: disable=too-few-public-methods
         _params = self.params.copy()
 
         pigment_combo = _params.pop('pigment_combo')
-        pigment_combo_options = [f'<option value="{n}">{i} {n}</option>' for i, n in enumerate(self.pigment_combos)]
+        # ~ pigment_combo_options = [f'<option value="{n}">{i} {n}</option>' for i, n in enumerate(self.pigment_combos)]
+        pigment_combo_options = []
+        for i, n in enumerate(self.pigment_combos):
+            if n == pigment_combo:
+                item = f'<option value="{n}" selected>{i} {n}</option>'
+            else:
+                item = f'<option value="{n}">{i} {n}</option>'
 
-        html_ = '<table>'
+            pigment_combo_options.append(item)
+
+        html_ = ''
+
+        html_ += '<table><tr>\n'
+
+        html_ += '<td><table>\n'
+
         for k, v in _params.items():
             description = self.param_descriptions.get(k)
-            html_ += f'<tr>'
-            html_ += f'<td style="text-align:right;width:10%;">{k}:</td>'
-            html_ += f'<td style="text-align:left;"><input value="{v}" name="{k}" size="40" class="params_panel_item"></input></td>'
-            html_ += f'<td style="width:50%;">{description}</td>'
-            html_ += f'</tr>'
+            html_ += f'<tr>\n'
+            html_ += f'<td style="text-align:right;">{k}:</td>\n'
+            html_ += f'<td style="text-align:left;"><input value="{v}" name="{k}" size="40" class="params_panel_item"></input></td>\n'
+            html_ += f'<td style="">{description}</td>\n'
+            html_ += f'</tr\n>'
 
-        html_ += f'<tr>'
-        html_ += f'<td style="text-align:right;width:10%;">{pigment_combo}:</td>'
-        html_ += f'<td style="text-align:left;"><select name="pigment_combo" class="params_panel_item">{pigment_combo_options}</select></td>'
-        html_ += f'<td style="width:50%;">{description}</td>'
-        html_ += f'</tr>'
+        html_ += f'<tr>\n'
+        html_ += f'<td style="text-align:right;width:30%;">pigment_combo:</td>\n'
+        html_ += f'<td style="text-align:left;"><select name="pigment_combo" class="params_panel_item">{pigment_combo_options}</select></td>\n'
+        html_ += f'<td style="width:10%;">{description}</td>\n'
+        html_ += f'</tr>\n'
 
-        html_ += '</table>'
+        html_ += '</table></td>\n'
+
+        html_ += '<td><table>\n'
+
+        list_ = os.listdir(self.params_file_path) if os.path.exists(self.params_file_path) else []
+        options_ = "".join([f'<option value="{n}">{n}</option>' for n in sorted(list_)])
+
+        html_ += f'<tr><td style="text-align:right;"><label>select a params file to load:</label></td></tr>\n'
+        html_ += f'<tr><td style="text-align:right;"><select id="load_params_file_name">{options_}</select></td></tr>\n'
+
+        html_ += f"""<tr><td style="text-align:right;"><input type="submit" id="load_params_btn" value="load_params" onclick="send_command('load_params');"/></td></tr>\n"""
+        html_ += f'<tr><td style="text-align:right;"><label>insert a filename for storing params:</label></td></tr>\n'
+        html_ += f"""<tr><td style="text-align:right;"><input type="text" id="store_params_file_name"/></td></tr>"""
+        html_ += f"""<tr><td style="text-align:right;"><input type="submit" id="store_params_btn" value="store_params" onclick="send_command('store_params');"/></td></tr>\n"""
+
+        html_ += '</table></td>\n'
+
+        html_ += '</tr></table>\n'
 
         return html_
 
@@ -221,6 +253,45 @@ class Backend:       # pylint: disable=too-few-public-methods
 
         logging.info(f"EXIT")
 
+    def store_params(self, f_name):
+
+        logging.warning(f"f_name:{f_name}")
+
+        if not os.path.exists(self.params_file_path):
+            os.makedirs(self.params_file_path)
+
+        with open(os.path.join(self.params_file_path, f_name), 'w') as f:
+            json.dump(self.params, f, indent=2)
+
+        html_ = self.render_params_html()
+        self.parent.send_message_to_UI(element_id='params_panel', innerHTML=html_)
+
+    def load_params(self, f_name):
+
+        logging.warning(f"f_name:{f_name}")
+
+        if not os.path.exists(self.params_file_path):
+            os.makedirs(self.params_file_path)
+
+        if os.path.exists(os.path.join(self.params_file_path, f_name)):
+            with open(os.path.join(self.params_file_path, f_name)) as f:
+                self.params = json.load(f)
+
+        html_ = self.render_params_html()
+        self.parent.send_message_to_UI(element_id='params_panel', innerHTML=html_)
+
+    def update_params(self, params):
+
+        self.params.update(params)
+
+        self.params['epsilon'] = min(max(float(self.params['epsilon']), 0.0001), 1000.)
+        self.params['n_of_rotate_sample'] = min(max(int(self.params['n_of_rotate_sample']), 0.0001), 1000.)
+        self.params['n_of_sites'] = min(max(int(self.params['n_of_sites']), 2), 1000)
+        self.params['randomize_sample'] = min(max(int(self.params['randomize_sample']), 0), 1)
+        self.params['n_of_closest_points'] = min(max(int(self.params['n_of_closest_points']), 2), 1000)
+
+        logging.info(f"self.params:{self.params}")
+
 
 class Application:
 
@@ -230,40 +301,71 @@ class Application:
 
     async def handle_message_from_UI(self, ws_socket, pack):
 
-        index_ = ws_socket in self.web_socket_channels and self.web_socket_channels.index(ws_socket)
-        pack = json.loads(pack)
-        logging.info(f"index_:{index_}, pack:{pack}")
+        try:
 
-        command = pack.get('message', pack.get('command'))
+            index_ = ws_socket in self.web_socket_channels and self.web_socket_channels.index(ws_socket)
+            pack = json.loads(pack)
+            logging.info(f"index_:{index_}, pack:{pack}")
 
-        order_by = pack.get('option', {}).get('order_by', 'rgb')
-        reverse = pack.get('option', {}).get('reverse')
-        reverse = bool(reverse)
+            command = pack.get('message', pack.get('command'))
 
-        if command == 'run_model':
+            order_by = pack.get('option', {}).get('order_by', 'rgb')
+            reverse = pack.get('option', {}).get('reverse')
+            reverse = bool(reverse)
 
-            self.send_message_to_UI(element_id='answer_display', innerHTML='Running Model, please wait...', ws_socket=ws_socket)
-            await self.backend_instance.run_model(ws_socket, order_by=order_by, reverse=reverse)
+            if command == 'run_model':
 
-        elif command == 'store_results':
+                self.send_message_to_UI(
+                    element_id='answer_display',
+                    innerHTML='Running Model, please wait...',
+                    ws_socket=ws_socket)
+                await self.backend_instance.run_model(ws_socket, order_by=order_by, reverse=reverse)
 
-            f_name = self.backend_instance.store_results()
-            self.send_message_to_UI(element_id='answer_display', innerHTML=f'stored data to "{f_name}"', ws_socket=ws_socket)
+            elif command == 'store_results':
 
-        elif command == 'order_by':
+                f_name = self.backend_instance.store_results()
+                self.send_message_to_UI(
+                    element_id='answer_display',
+                    innerHTML=f'stored data to "{f_name}"',
+                    ws_socket=ws_socket)
 
-            self.backend_instance.refresh_results(ws_socket, order_by=order_by, reverse=reverse)
+            elif command == 'order_by':
 
-        elif command == 'stop_model':
+                self.backend_instance.refresh_results(ws_socket, order_by=order_by, reverse=reverse)
 
-            if self.backend_instance.model:
-                self.backend_instance.model.stop()
+            elif command == 'stop_model':
 
-        elif command == 'params_panel':
+                if self.backend_instance.model:
+                    self.backend_instance.model.stop()
 
-            params = pack.get('option')
-            self.backend_instance.params.update(params)
-            logging.info(f"self.backend_instance.params:{self.backend_instance.params}")
+            elif command == 'params_panel':
+
+                params = pack.get('option')
+                self.backend_instance.update_params(params)
+
+            elif command == 'store_params':
+
+                f_name = pack.get('option', {}).get('f_name')
+                if f_name:
+                    self.backend_instance.store_params(f_name)
+                    self.send_message_to_UI(
+                        element_id='answer_display',
+                        innerHTML=f'stored params to "{f_name}"',
+                        ws_socket=ws_socket)
+
+            elif command == 'load_params':
+
+                f_name = pack.get('option', {}).get('f_name')
+                if f_name:
+                    self.backend_instance.load_params(f_name)
+                    self.send_message_to_UI(
+                        element_id='answer_display',
+                        innerHTML=f'loaded params from "{f_name}"',
+                        ws_socket=ws_socket)
+
+        except Exception as e:  # pylint: disable=broad-except
+            logging.error(traceback.format_exc())
+            self.send_message_to_UI(element_id='answer_display', innerHTML=f'Exception: "{e}"', ws_socket=ws_socket)
 
     def send_message_to_UI(self, element_id, innerHTML, ws_socket=None):
 

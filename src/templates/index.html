@@ -55,7 +55,6 @@
 		<hr></hr>
         <table id="message_container">
         <tr>
-
 			<td style="text-align:right;">
 				<input type="submit" id="run_model_btn" value="run_model" onclick="send_command('run_model');"/>
 				<input type="submit" id="stop_model_btn" value="stop_model" onclick="send_command('stop_model');"/>
@@ -67,7 +66,8 @@
 					<option value="b">b</option>
 					<option value="name">name</option>
 					<option value="error">std dev</option>
-					<option value="dist">dist</option>
+					<option value="dist_0">dist_0</option>
+					<option value="dist_1">dist_1</option>
 				</select>
 				<label for="reverse">reverse</label>
 				<input type="checkbox" id="reverse_cb" name="reverse" onchange="send_command('order_by');"></input>
@@ -138,11 +138,11 @@
 			var pack = JSON.stringify({'message': 'params_panel', 'option': params});
             logging("sending pack to ws: '" + pack + "'");
 			ws_instance.send(pack);
-		}
+		};
 
 		var send_command = function (command) {
 
-			var option = '';
+			var option = {};
 			if (command == 'order_by') {
 				option = {
 					'order_by': document.getElementById("order_by_select").value,
@@ -153,6 +153,15 @@
 				option = {
 					'order_by': document.getElementById("order_by_select").value,
 					'reverse': document.getElementById("reverse_cb").checked
+				};
+			} else if (command == 'load_params') {
+				option = {
+					'f_name': document.getElementById("load_params_file_name").value,
+				};
+			} else if (command == 'store_params') {
+				send_params_panel();
+				option = {
+					'f_name': document.getElementById("store_params_file_name").value,
 				};
 			}
 			var pack = JSON.stringify({'command': command, 'option': option});

@@ -57,10 +57,8 @@ class RbfInterpolator:
         dt0 = time.time() - t0
 
         t0 = time.time()
-        try:
-            self.A = np.linalg.inv(A_)
-        except Exception as e:
-            logging.error(f"e:{e}")
+        self.A = np.linalg.inv(A_)
+
         dt1 = time.time() - t0
 
         t0 = time.time()
@@ -91,8 +89,8 @@ class RbfInterpolator:
         # ~ val = (1 - r * 50. - r ** 2 * .5)
         # ~ val = math.sqrt(max(0, (1 - r * epsilon)))
         return val
-    @staticmethod
 
+    @staticmethod
     def linear(x, x_0, epsilon):
 
         d = x - x_0
@@ -146,7 +144,11 @@ class Model:
         self.mockup = kwargs.get('mockup', False)
         self.n_of_closest_points = kwargs.get('n_of_closest_points', 0)
         self.randomize_sample = kwargs.get('randomize_sample', 0)
-        self.f_name = os.path.join(data_dir, "recipes.Master base,Neutro," + kwargs.get('pigment_combo') + ",white.json")
+        self.f_name = os.path.join(
+            data_dir,
+            "recipes.Master base,Neutro," +
+            kwargs.get('pigment_combo') +
+            ",white.json")
 
         self.__stop = False
         self.progress = None
@@ -181,15 +183,14 @@ class Model:
         with open(self.f_name) as f:
             data = json.load(f)
 
-        filter_names = []
-        (
+        filter_names = (
             "S 1030-Y10R",
             "S 3040-G60Y",
             "1030-Y10R",
-            "S 3050-Y", 
-            "S 4550-G", 
+            "S 3050-Y",
+            "S 4550-G",
             "S 2040-Y10R",
-            
+
             "S 5010-Y70R",
             "S 1502-Y50R",
             "S 4010-Y70R",
@@ -226,14 +227,15 @@ class Model:
             "S 6010-Y30R",
             "S 5030-Y",
             "S 2030-Y80R",
-            )
+        )
 
-        self.data = [d for d in data if d["StandardName"] not in filter_names][:self.n_of_sites]
+        # ~ self.data = [d for d in data if d["StandardName"] not in filter_names][:self.n_of_sites]
+        self.data = [d for d in data][:self.n_of_sites]
 
         _offset = []
         _factor = []
-        k = "predicted_LabCh"
-        # ~ k = "target_rgb"
+        # ~ k = "predicted_LabCh"
+        k = "target_rgb"
         for i in range(3):
             _min = min([d[k][i] for d in self.data])
             _max = max([d[k][i] for d in self.data])
@@ -272,6 +274,8 @@ class Model:
         else:
             sites, measures_dict = self.load_data()
 
+        # ~ logging.warning(f"sites:{sites}, measures_dict:{measures_dict}")
+
         self.n_of_rotate_sample = min(self.n_of_rotate_sample, len(sites))
         if self.randomize_sample:
             sample_range = random.sample(range(0, len(sites)), self.n_of_rotate_sample)
@@ -282,7 +286,7 @@ class Model:
         results = []
         progress = []
         for i in sample_range:
-            
+
             i = i % len(sites)
 
             error = 0
@@ -291,6 +295,7 @@ class Model:
                 'predicted_LabCh': self.data[i]['predicted_LabCh'],
                 'target_rgb': self.data[i]['target_rgb'],
             }
+
             for k, measures in measures_dict.items():
 
                 meas = measures[:]
@@ -301,7 +306,11 @@ class Model:
                 test_sites = np.array([s_.pop(i)])
                 sites_ = np.array(s_)
 
-                interpolated_values, dists = self.fit(sites_, measures_, test_sites)
+                sites_, measures_ = self.filter_sites(sites_, measures_, test_sites)
+
+                diffs_ = np.matrix([(test_sites[0] - x[0]) for x in sites_])
+
+                interpolated_values = self.fit(sites_, measures_, test_sites)
 
                 item = {
                     'measured': float(test_values[0]),
@@ -309,7 +318,7 @@ class Model:
                 }
 
                 _test_values = np.array([max(t, 0.1) for t in test_values])
-                error += np.sum( abs((test_values - interpolated_values) / _test_values) )
+                error += np.sum(abs((test_values - interpolated_values) / _test_values))
                 result[k] = item
                 result['rgb'] = [int(_ * MAX_COL_VAL) for _ in test_sites[0]]
 
@@ -319,7 +328,17 @@ class Model:
                     self.__stop = False
                     return []
 
-            result['dist'] = np.linalg.norm(np.sum(dists)) / len(dists)
+            N = len(diffs_)
+
+            # ~ sum_of_diffs = diffs_[0]
+            # ~ for x in diffs_[1:]:
+                # ~ sum_of_diffs += x
+            sum_of_diffs = np.sum(diffs_)
+
+            logging.warning(f"diffs_:{diffs_}, sum_of_diffs:{sum_of_diffs}")
+
+            result['dist_0'] = np.linalg.norm(sum_of_diffs) / N
+            result['dist_1'] = sum([np.linalg.norm(x) for x in diffs_]) / N
             result['error'] = float(np.sqrt(error))
             results.append(result)
             prog_mesg = f"error:{result['error']:.2f} {len(results)}/{self.n_of_rotate_sample} N:{len(sites)}"
@@ -340,26 +359,18 @@ class Model:
 
     def filter_sites(self, sites, measures, test_sites):
 
-        # ~ logging.warning(f"sites:{sites}, measu  res:{measures}")
-
-        # ~ l_ = [[sites[i], measures[i]]  for i in range(len(sites))]
         l_ = list(zip(sites, measures))
+
         def _dist(x):
             return np.linalg.norm(x[0] - test_sites[0])
         l_.sort(key=_dist)
         l_ = l_[:self.n_of_closest_points]
         _sites = np.array([x[0] for x in l_])
         _measures = np.array([x[1] for x in l_])
-        _dists = np.array([_dist(x) for x in l_])
 
-        # ~ logging.warning(f"x:{test_sites[0]}, _sites:{_sites}, _measures:{_measures}, _dists:{_dists}")
-        # ~ logging.warning(f"x:{test_sites[0]}, _sites:{_sites}, _dists:{_dists}")
-
-        return _sites, _measures, _dists
+        return _sites, _measures
 
     def fit(self, sites, measures, test_sites):
-
-        sites, measures, dists = self.filter_sites(sites, measures, test_sites)
 
         interpolator = RbfInterpolator(self.rfb_name, sites, measures, self.epsilon)
         interpolator.compute_matrix()
@@ -367,15 +378,21 @@ class Model:
         interpolated_values = [interpolator.interpolate(s) for s in test_sites]
         interpolated_values = np.array(interpolated_values)
 
-        return interpolated_values, dists
+        return interpolated_values
 
     @staticmethod
     def render_results_html(results, title):
 
         def _error_to_color(error):
 
-            tmp = int(255 - error * 12)
+            tmp = min(255, int(255 - error * 12))
             color = f'#FF{tmp:02X}{tmp:02X}'
+            return color
+
+        def _dist_to_color(dist):
+
+            tmp = min(255, int(255 - dist * 120))
+            color = f'#{tmp:02X}{tmp:02X}FF'
             return color
 
         def _format_item_data(r, name, error):
@@ -384,21 +401,12 @@ class Model:
             for k, v in r.items():
                 recipes['measured'][k] = f"{v['measured']:.4f}"
                 recipes['interpolated'][k] = f"{v['interpolated']:.4f}"
-            # ~ recipes = str(recipes).replace("'", ' ').replace('"', ' ').replace(':', ' ').replace('{', ' ').replace('}', ' ')
             recipes = f"""{name} {str(recipes).replace("'", ' ').replace('"', ' ')}"""
 
             html_ = ""
 
             html_ += f'<table title="{recipes}" style="table-layout:fixed;width:100%;" onclick="alert(\'{recipes}\');">'
             html_ += "<tr>"
-
-            # ~ for k in r.keys():
-            # ~ html_ += f"<th>{k}</th>"
-            # ~ html_ += "<tr>"
-            # ~ for v in r.values():
-            # ~ diff = v['measured'] - v['interpolated']
-            # ~ color = "#FFFFDD" if (abs(diff) > 1 or abs(diff) / max(0.001, v['measured']) > 0.5) else "#EEEEEE"
-            # ~ html_ += f"""<td style="background-color:{color};">{v['measured']:8.3f}({diff:.3f})</td>"""
 
             for k, v in r.items():
                 diff = v['measured'] - v['interpolated']
@@ -422,8 +430,12 @@ class Model:
         html_body = ""
         html_body += "<body>"
         html_body += """<table style="table-layout:fixed;width:100%;" cellspacing="2px" cellpadding="2px">"""
-        html_body += """<tr><th>ord</th><th>name</th><th>chip</th><th>rgb</th><th width="65%">measured (measured - interpolated)</th><th>std dev</th><th>dist</th></tr>"""
-        
+        html_body += """<tr>
+            <th>ord</th><th>name</th><th>chip</th><th>rgb</th>
+            <th width="65%">measured (measured - interpolated)</th>
+            <th>std dev</th><th>dist_0</th><th>dist_1</th>
+        </tr>"""
+
         for i, res in enumerate(results):
             r = res.copy()
             rgb = r.pop('rgb')
@@ -432,17 +444,19 @@ class Model:
             predicted_LabCh = r.pop('predicted_LabCh')
             name = r.pop('name')
             error = round(r.pop('error'), 2)
-            dist = round(r.pop('dist'), 3)
+            dist_0 = round(r.pop('dist_0'), 3)
+            dist_1 = round(r.pop('dist_1'), 3)
             rgb_hex = "#{:02X}{:02X}{:02X}".format(*[int(a) for a in target_rgb])
             html_body += f"""
             <tr>
                 <td>{i:02d}</td>
                 <td>{name}</td>
                 <td style="border-radius:8px;padding:6px;background-color:{rgb_hex};width:200px;"></td>
-                <td> **** {_rgb}</td>
+                <td>{_rgb}</td>
                 <td>{_format_item_data(r, name, error)}</td>
                 <td style="background-color:{_error_to_color(error)};">{error}</td>
-                <td>{dist}</td>
+                <td style="background-color:{_dist_to_color(dist_0)};">{dist_0}</td>
+                <td style="background-color:{_dist_to_color(dist_1)};">{dist_1}</td>
             </tr>
             """
 
