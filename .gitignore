@@ -13,7 +13,7 @@ wsgi.log
 *.diff
 *.patch
 venv
-__tmp__*
+__*
 *.secret*
 __wheels__
 build

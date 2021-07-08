@@ -108,8 +108,9 @@ class Backend:       # pylint: disable=too-few-public-methods
         ]
 
         self.parent = parent
+
         self.params = dict(
-            rfb_name='test',
+            rfb_name='linear',
             epsilon=1.0,
             n_of_rotate_sample=10,
             n_of_sites=1000,
@@ -207,7 +208,7 @@ class Backend:       # pylint: disable=too-few-public-methods
             self.results = traceback.format_exc()
             logging.error(traceback.format_exc())
 
-        # ~ _, results_html, _ = self.model.render_results_html(self.results, title="")
+        # ~ _, results_html, _ = self.model.render_results_html(self.results)
         self.refresh_results(ws_socket, order_by=order_by, reverse=reverse)
 
     def store_results(self, ):
@@ -223,16 +224,22 @@ class Backend:       # pylint: disable=too-few-public-methods
 
     def refresh_results(self, ws_socket, order_by='error', reverse=True):
 
-        if order_by.lower() == 'r':
-            self.results.sort(key=lambda x: x.get('rgb', 0) and x['rgb'][0], reverse=reverse)
-        elif order_by.lower() == 'g':
-            self.results.sort(key=lambda x: x.get('rgb', 0) and x['rgb'][1], reverse=reverse)
-        elif order_by.lower() == 'b':
-            self.results.sort(key=lambda x: x.get('rgb', 0) and x['rgb'][2], reverse=reverse)
+        if order_by == 'R':
+            self.results.sort(key=lambda x: x['target_rgb'][0], reverse=reverse)
+        elif order_by == 'G':
+            self.results.sort(key=lambda x: x['target_rgb'][1], reverse=reverse)
+        elif order_by == 'B':
+            self.results.sort(key=lambda x: x['target_rgb'][2], reverse=reverse)
+        elif order_by == 'l':
+            self.results.sort(key=lambda x: x['predicted_LabCh'][0], reverse=reverse)
+        elif order_by == 'a':
+            self.results.sort(key=lambda x: x['predicted_LabCh'][1], reverse=reverse)
+        elif order_by == 'b':
+            self.results.sort(key=lambda x: x['predicted_LabCh'][2], reverse=reverse)
         else:
             self.results.sort(key=lambda x: x.get(order_by) and x[order_by], reverse=reverse)
 
-        _, html_body, _ = self.model.render_results_html(self.results, title="")
+        _, html_body, _ = self.model.render_results_html(self.results)
 
         self.parent.send_message_to_UI(element_id='data_display', innerHTML=html_body, ws_socket=ws_socket)
 
