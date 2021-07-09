@@ -2,7 +2,11 @@
 
 Scattered Data Interpolation in N-dim space based on Radia Basis Functions
 
-Compsed with a backend using asyncio, tornado, websocket server and a GUI running in Browser
+With: 
+  * a backend using asyncio, tornado, websocket server and 
+  * a GUI running in Browser (minimal usage of basic JS)
+
+=========
 
 1. create a virtualenv 
 >     $ export VIRTENV_ROOT=desired-virtenv_root-path
