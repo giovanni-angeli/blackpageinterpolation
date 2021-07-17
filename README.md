@@ -1,6 +1,6 @@
 # Black Page Interpolation
 
-Scattered Data Interpolation in N-dim space based on Radia Basis Functions
+Scattered Data Interpolation in N-dim space based on [Radial Basis Functions](https://en.wikipedia.org/wiki/Radial_basis_function_interpolation)
 
 With: 
   * a backend using asyncio, tornado, websocket server and 
