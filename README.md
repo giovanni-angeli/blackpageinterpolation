@@ -4,7 +4,7 @@ Scattered Data Interpolation in N-dim space based on Radia Basis Functions
 
 With: 
   * a backend using asyncio, tornado, websocket server and 
-  * a GUI running in Browser (minimal usage of basic JS)
+  * a GUI running in Browser (HTML and minimal usage of basic JS)
 
 =========
 
