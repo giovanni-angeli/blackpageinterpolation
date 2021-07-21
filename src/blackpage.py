@@ -105,12 +105,14 @@ class Backend:       # pylint: disable=too-few-public-methods
             "bleu,noir,violet",
             "bleu,jauox,noir",
             "bleu,orange,violet",
+            "Combinazioni_per_spazio_colore_interpolare.csv",
+            "Combinazioni_per_spazio_colore_risultati.csv",
         ]
 
         self.parent = parent
 
         self.params = dict(
-            rfb_name='linear',
+            rfb_name='exp',
             epsilon=1.0,
             n_of_rotate_sample=10,
             n_of_sites=1000,
@@ -213,10 +215,11 @@ class Backend:       # pylint: disable=too-few-public-methods
 
     def store_results(self, ):
 
-        data_dir = "/opt/PROJECTS/blackpageinterpolation/_ignore_/data/"
+        data_dir = "/opt/PROJECTS/blackpageinterpolation/_ignore_/results/"
 
         self.results.sort(key=lambda x: x.get('error', 0) and x['error'])
-        f_name = f"results_{self.params['n_of_sites']}_{self.params['n_of_rotate_sample']}_{self.params['pigment_combo']}.json"
+        # ~ f_name = f"results_{self.params['n_of_sites']}_{self.params['n_of_rotate_sample']}_{self.params['pigment_combo']}.json"
+        f_name = f"results.{self.params['pigment_combo']}.json"
         with open(os.path.join(data_dir, f_name), 'w') as f:
             json.dump(self.results, f, indent=2)
 
@@ -231,11 +234,11 @@ class Backend:       # pylint: disable=too-few-public-methods
         elif order_by == 'B':
             self.results.sort(key=lambda x: x['target_rgb'][2], reverse=reverse)
         elif order_by == 'l':
-            self.results.sort(key=lambda x: x['predicted_LabCh'][0], reverse=reverse)
+            self.results.sort(key=lambda x: x['lab_mis'][0], reverse=reverse)
         elif order_by == 'a':
-            self.results.sort(key=lambda x: x['predicted_LabCh'][1], reverse=reverse)
+            self.results.sort(key=lambda x: x['lab_mis'][1], reverse=reverse)
         elif order_by == 'b':
-            self.results.sort(key=lambda x: x['predicted_LabCh'][2], reverse=reverse)
+            self.results.sort(key=lambda x: x['lab_mis'][2], reverse=reverse)
         else:
             self.results.sort(key=lambda x: x.get(order_by) and x[order_by], reverse=reverse)
 
@@ -251,8 +254,6 @@ class Backend:       # pylint: disable=too-few-public-methods
             try:
                 self.parent.send_message_to_UI("time_display", time.asctime())
                 self.parent.send_message_to_UI("channel_counter", len(self.parent.web_socket_channels))
-            except tornado.websocket.WebSocketClosedError as e:
-                logging.info(f"e:{e}")
             except Exception:    # pylint: disable=broad-except
                 logging.error(traceback.format_exc())
 
@@ -316,9 +317,13 @@ class Application:
 
             command = pack.get('message', pack.get('command'))
 
-            order_by = pack.get('option', {}).get('order_by', 'rgb')
-            reverse = pack.get('option', {}).get('reverse')
-            reverse = bool(reverse)
+            try:
+                order_by = pack.get('option', {}).get('order_by', 'rgb')
+                reverse = pack.get('option', {}).get('reverse')
+                reverse = bool(reverse)
+            except: # pylint: disable=broad-except
+                order_by = 'rgb'
+                reverse = False
 
             if command == 'run_model':
 
@@ -379,14 +384,24 @@ class Application:
         msg = {"element_id": element_id, "innerHTML": innerHTML}
         msg = json.dumps(msg)
 
-        if ws_socket:
-            t_ = ws_socket.write_message(msg)
-            asyncio.ensure_future(t_)
+        try:
 
-        else:  # broadcast
-            for ws_ch in self.web_socket_channels:
-                t_ = ws_ch.write_message(msg)
+            if ws_socket and ws_socket in self.web_socket_channels:
+                t_ = ws_socket.write_message(msg)
                 asyncio.ensure_future(t_)
+
+            else:  # broadcast
+                for ws_ch in self.web_socket_channels:
+                    t_ = ws_ch.write_message(msg)
+                    asyncio.ensure_future(t_)
+
+        except tornado.websocket.WebSocketClosedError as e:
+
+            logging.error(traceback.format_exc())
+
+            if ws_socket in self.web_socket_channels:
+                self.web_socket_channels.remove(ws_socket)
+
 
     def start_tornado(self):
 
