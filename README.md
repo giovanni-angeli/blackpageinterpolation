@@ -1,8 +1,12 @@
 # Black Page Interpolation
 
-Scattered Data Interpolation in N-dim space based on Radia Basis Functions
+Scattered Data Interpolation in N-dim space based on [Radial Basis Functions](https://en.wikipedia.org/wiki/Radial_basis_function_interpolation)
 
-Compsed with a backend using asyncio, tornado, websocket server and a GUI running in Browser
+With: 
+  * a backend using asyncio, tornado, websocket server and 
+  * a GUI running in Browser (HTML and minimal usage of basic JS)
+
+=========
 
 1. create a virtualenv 
 >     $ export VIRTENV_ROOT=desired-virtenv_root-path
