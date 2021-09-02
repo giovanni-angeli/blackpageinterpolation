@@ -14,7 +14,7 @@ With:
 >     $ virtualenv -p /usr/bin/python3 ${VIRTENV_ROOT}
 
 2. clone this project in ${PROJECT_ROOT}
->     $ git clone git@github.com:giovanni-angeli/pyjamapeople.git
+>     $ git clone git@github.com:giovanni-angeli/blackpageinterpolation.git
 
 3. build Install in edit mode:
 >     $ . ${VIRTENV_ROOT}/bin/activate
@@ -22,7 +22,7 @@ With:
 >     $ pip install -e ./
 
 4. Run:
->     $ blackpageinterpolation &
+>     $ blackpage &
 >     $ chromium http://127.0.0.1:8000/ &
 >     $ firefox http://127.0.0.1:8000/ &
 
