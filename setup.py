@@ -46,6 +46,7 @@ def main():
         install_requires=[
             'tornado',
             'numpy',
+            'colormath',
         ],
     )
 
